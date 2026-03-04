@@ -6,7 +6,6 @@
     <title>Главная - Вкусняшка-няшка</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="styles.css">
-
 </head>
 <body class="page">
     <header class="site-header">  
@@ -26,10 +25,16 @@
                 <label for="price">Цена (₽):</label>
                 <input type="number" id="price" step="1" min="1" required>
 
+                <label for="category">Категория:</label>
+                <input type="text" id="category" required>
+
+                <label for="amount">Количество на складе:</label>
+                <input type="number" id="amount" step="1" min="0" required>
+
                 <label for="description">Описание:</label>
                 <textarea id="description" rows="3"></textarea>
 
-                <button type="submit">Добавить товар</button>
+                <button type="submit" id="submitBtn">Добавить товар</button>
             </form>
         </section>
 
@@ -38,7 +43,7 @@
                 <h3 class="card-title">Наш ассортимент товаров</h3>
             </div>
             <div class="product-container" id="product-container">
-                <p>Загрузка товаров...</p>
+                <div class="loading-spinner">Загрузка...</div>
             </div>
         </section>
     </main>
@@ -61,6 +66,9 @@
 
     <script>
         const API_URL = '/products';
+        const productContainer = document.getElementById('product-container');
+        const addForm = document.getElementById('addProductForm');
+        const submitBtn = document.getElementById('submitBtn');
 
         async function loadProducts() {
             try {
@@ -70,130 +78,76 @@
                 renderProducts(products);
             } catch (error) {
                 console.error('Ошибка загрузки товаров:', error);
-                document.getElementById('product-container').innerHTML = '<p style="color:red;">Не удалось загрузить товары.</p>';
+                productContainer.innerHTML = '<p style="color:red;">Не удалось загрузить товары.</p>';
             }
         }
 
         function renderProducts(products) {
-            const container = document.getElementById('product-container');
-            container.innerHTML = '';
-
             if (products.length === 0) {
-                container.innerHTML = '<p>Товаров пока нет.</p>';
+                productContainer.innerHTML = '<p>Товаров пока нет.</p>';
                 return;
             }
 
-            products.forEach(product => {
-                const card = document.createElement('div');
-                card.className = 'product-card';
-                card.dataset.id = product.id;
-
-                const imageDiv = document.createElement('div');
-                imageDiv.className = 'product-card__image';
-                const img = document.createElement('img');
-                img.src = `img/${product.id}.jpg`;
-                img.alt = product.name;
-                img.className = 'card-img-top card-image';
-                imageDiv.appendChild(img);
-
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'product-card__content';
-
-                const title = document.createElement('h3');
-                title.className = 'product-card__title';
-                title.textContent = product.name;
-
-                const description = document.createElement('p');
-                description.className = 'product-card__description';
-                description.textContent = product.description;
-
-                const price = document.createElement('p');
-                price.className = 'product-card__price';
-                price.textContent = `Цена: ${product.price} ₽`;
-
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'product-card__actions';
-
-                const editBtn = document.createElement('button');
-                editBtn.textContent = 'Редактировать';
-                editBtn.className = 'edit-btn';
-                editBtn.onclick = () => editProduct(product.id);
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Удалить';
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.onclick = () => deleteProduct(product.id);
-
-                actionsDiv.appendChild(editBtn);
-                actionsDiv.appendChild(deleteBtn);
-
-                contentDiv.appendChild(title);
-                contentDiv.appendChild(description);
-                contentDiv.appendChild(price);
-                contentDiv.appendChild(actionsDiv);
-
-                card.appendChild(imageDiv);
-                card.appendChild(contentDiv);
-                container.appendChild(card);
-            });
+            productContainer.innerHTML = products.map(product => `
+                <div class="product-card" data-id="${product.id}">
+                    <div class="product-card__image">
+                        <img src="img/${product.id}.jpg" alt="${product.name}" class="card-img-top card-image">
+                    </div>
+                    <div class="product-card__content">
+                        <h3 class="product-card__title">${escapeHtml(product.name)}</h3>
+                        <p class="product-card__description">${escapeHtml(product.description)}</p>
+                        <p class="product-card__price">Цена: ${product.price} ₽</p>
+                        <p class="product-card__category">${escapeHtml(product.category)}</p>
+                        <p class="product-card__amount">${product.amount}</p>
+                        <div class="product-card__actions">
+                            <button class="edit-btn">Редактировать</button>
+                            <button class="delete-btn">Удалить</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        document.getElementById('addProductForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('name').value.trim();
-            const price = parseInt(document.getElementById('price').value);
-            const description = document.getElementById('description').value.trim();
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
 
-            if (!name || isNaN(price) || price <= 0) {
-                alert('Пожалуйста, заполните название и корректную цену.');
-                return;
-            }
+        productContainer.addEventListener('click', async (e) => {
+            const target = e.target;
+            const card = target.closest('.product-card');
+            if (!card) return;
 
-            try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, price, description })
-                });
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error || 'Ошибка при добавлении');
+            const id = card.dataset.id;
+            if (target.classList.contains('delete-btn')) {
+                if (!confirm('Вы уверены, что хотите удалить товар?')) return;
+                try {
+                    const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Ошибка при удалении');
+                    }
+                    alert('Товар удалён');
+                    loadProducts();
+                } catch (error) {
+                    alert('Ошибка: ' + error.message);
                 }
-
-                const newProduct = await response.json();
-                alert(`Товар "${newProduct.name}" успешно добавлен!`);
-                document.getElementById('addProductForm').reset();
-                loadProducts();
-            } catch (error) {
-                alert('Ошибка: ' + error.message);
+            } else if (target.classList.contains('edit-btn')) {
+                editProduct(id);
             }
         });
 
-        async function deleteProduct(id) {
-            if (!confirm('Вы уверены, что хотите удалить товар?')) return;
-
-            try {
-                const response = await fetch(`${API_URL}/${id}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error || 'Ошибка при удалении');
-                }
-
-                alert('Товар удалён');
-                loadProducts();
-            } catch (error) {
-                alert('Ошибка: ' + error.message);
-            }
-        }
-
         async function editProduct(id) {
-            const newName = prompt('Введите новое название (или оставьте пустым, чтобы не менять):');
-            const newPriceInput = prompt('Введите новую цену (или оставьте пустым, чтобы не менять):');
+            const newName = prompt('Введите новое название (или оставьте пустым):');
+            const newPriceInput = prompt('Введите новую цену (или оставьте пустым):');
             const newDescription = prompt('Введите новое описание (или оставьте пустым):');
+            const newCategory = prompt('Введите новую категорию (или оставьте пустым):');
+            const newAmount = prompt('Введите новое количество (или оставьте пустым):');
 
             const updates = {};
             if (newName && newName.trim() !== '') updates.name = newName.trim();
@@ -203,6 +157,12 @@
                 else { alert('Некорректная цена'); return; }
             }
             if (newDescription && newDescription.trim() !== '') updates.description = newDescription.trim();
+            if (newCategory && newCategory.trim() !== '') updates.category = newCategory.trim();
+            if (newAmount !== null && newAmount.trim() !== '') {
+                const amount = parseInt(newAmount);
+                if (!isNaN(amount) && amount >= 0) updates.amount = amount;
+                else { alert('Некорректное количество'); return; }
+            }
 
             if (Object.keys(updates).length === 0) {
                 alert('Нет данных для обновления');
@@ -215,18 +175,56 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updates)
                 });
-
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || 'Ошибка при обновлении');
                 }
-
                 alert('Товар обновлён');
                 loadProducts();
             } catch (error) {
                 alert('Ошибка: ' + error.message);
             }
         }
+
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            const price = parseInt(document.getElementById('price').value);
+            const description = document.getElementById('description').value.trim();
+            const category = document.getElementById('category').value.trim();
+            const amount = parseInt(document.getElementById('amount').value);
+
+            if (!name || isNaN(price) || price <= 0) {
+                alert('Пожалуйста, заполните название и корректную цену.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Сохранение...';
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, price, description, category, amount })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Ошибка при добавлении');
+                }
+
+                const newProduct = await response.json();
+                alert(`Товар "${newProduct.name}" успешно добавлен!`);
+                addForm.reset();
+                loadProducts();
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Добавить товар';
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', loadProducts);
     </script>
