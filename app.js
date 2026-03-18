@@ -4,15 +4,22 @@ const fs = require('fs').promises;
 const { body, validationResult } = require('express-validator');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const PRODUCTS_FILE = process.env.PRODUCTS_FILE || path.join(__dirname, 'products.json');
 const USERS_FILE = process.env.USERS_FILE || path.join(__dirname, 'users.json');
 
-// --- Данные ---
 let products = [];
 let users = [];
+
+// CORS middleware
+app.use(cors({
+  origin: 'http://localhost:3001',
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Загрузка товаров
 async function loadProducts() {
@@ -54,7 +61,7 @@ async function saveUsers() {
   }
 }
 
-// --- Swagger настройка ---
+// Swagger настройка
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -70,129 +77,21 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: [__filename], // сканируем текущий файл на наличие JSDoc-комментариев
+  apis: [__filename],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     User:
- *       type: object
- *       required:
- *         - name
- *         - email
- *         - password
- *       properties:
- *         id:
- *           type: integer
- *           description: Уникальный идентификатор пользователя
- *         name:
- *           type: string
- *           description: Имя пользователя
- *         email:
- *           type: string
- *           description: Электронная почта
- *         password:
- *           type: string
- *           description: Пароль (не возвращается в ответах)
- *       example:
- *         id: 1
- *         name: Иван Иванов
- *         email: ivan@example.com
- *         password: secret123
- *     Product:
- *       type: object
- *       required:
- *         - name
- *         - price
- *         - category
- *         - amount
- *       properties:
- *         id:
- *           type: integer
- *         name:
- *           type: string
- *         price:
- *           type: number
- *         description:
- *           type: string
- *         category:
- *           type: string
- *         amount:
- *           type: integer
- *       example:
- *         id: 1
- *         name: "Моти"
- *         price: 350
- *         description: "Японские рисовые лепёшки"
- *         category: "Десерты"
- *         amount: 10
- */
-
-/**
- * @swagger
- * tags:
- *   - name: Users
- *     description: Управление пользователями
- *   - name: Products
- *     description: Управление товарами
- */
-
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Подключаем Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// --- Маршруты для товаров (без изменений) ---
-
-/**
- * @swagger
- * /products:
- *   get:
- *     summary: Получить все товары
- *     tags: [Products]
- *     responses:
- *       200:
- *         description: Список товаров
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
- */
+// --- Маршруты для товаров ---
 app.get('/products', (req, res) => {
   res.json(products);
 });
 
-/**
- * @swagger
- * /products/{id}:
- *   get:
- *     summary: Получить товар по ID
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID товара
- *     responses:
- *       200:
- *         description: Данные товара
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
- *       404:
- *         description: Товар не найден
- */
 app.get('/products/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const product = products.find(p => p.id === id);
@@ -203,50 +102,6 @@ app.get('/products/:id', (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /products:
- *   post:
- *     summary: Создать новый товар
- *     tags: [Products]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - price
- *               - category
- *               - amount
- *             properties:
- *               name:
- *                 type: string
- *               price:
- *                 type: number
- *               description:
- *                 type: string
- *               category:
- *                 type: string
- *               amount:
- *                 type: integer
- *             example:
- *               name: "Моти"
- *               price: 350
- *               description: "Японские рисовые лепёшки"
- *               category: "Десерты"
- *               amount: 10
- *     responses:
- *       201:
- *         description: Товар создан
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
- *       400:
- *         description: Ошибка валидации
- */
 app.post('/products',
   body('name').isString().notEmpty(),
   body('price').isFloat({ gt: 0 }),
@@ -276,47 +131,6 @@ app.post('/products',
   }
 );
 
-/**
- * @swagger
- * /products/{id}:
- *   patch:
- *     summary: Частичное обновление товара
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               price:
- *                 type: number
- *               description:
- *                 type: string
- *               category:
- *                 type: string
- *               amount:
- *                 type: integer
- *     responses:
- *       200:
- *         description: Обновлённый товар
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Product'
- *       400:
- *         description: Ошибка валидации
- *       404:
- *         description: Товар не найден
- */
 app.patch('/products/:id',
   body('name').optional().isString(),
   body('price').optional().isFloat({ gt: 0 }),
@@ -347,31 +161,6 @@ app.patch('/products/:id',
   }
 );
 
-/**
- * @swagger
- * /products/{id}:
- *   delete:
- *     summary: Удалить товар
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Товар удалён
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: Товар не найден
- */
 app.delete('/products/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   const initialLength = products.length;
@@ -386,50 +175,11 @@ app.delete('/products/:id', async (req, res) => {
 });
 
 // --- Маршруты для пользователей ---
-
-/**
- * @swagger
- * /users:
- *   get:
- *     summary: Получить всех пользователей (без паролей)
- *     tags: [Users]
- *     responses:
- *       200:
- *         description: Список пользователей
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
- */
 app.get('/users', (req, res) => {
   const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
   res.json(usersWithoutPassword);
 });
 
-/**
- * @swagger
- * /users/{id}:
- *   get:
- *     summary: Получить пользователя по ID (без пароля)
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Данные пользователя
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       404:
- *         description: Пользователь не найден
- */
 app.get('/users/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const user = users.find(u => u.id === id);
@@ -440,49 +190,10 @@ app.get('/users/:id', (req, res) => {
   res.json(userWithoutPassword);
 });
 
-/**
- * @swagger
- * /users:
- *   post:
- *     summary: Создать нового пользователя
- *     tags: [Users]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 minLength: 6
- *             example:
- *               name: "Иван Иванов"
- *               email: "ivan@example.com"
- *               password: "secret123"
- *     responses:
- *       201:
- *         description: Пользователь создан (пароль не возвращается)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       400:
- *         description: Ошибка валидации
- */
 app.post('/users',
-  body('name').isString().notEmpty().withMessage('Имя обязательно'),
-  body('email').isEmail().withMessage('Некорректный email'),
-  body('password').isLength({ min: 6 }).withMessage('Пароль должен быть не менее 6 символов'),
+  body('name').isString().notEmpty(),
+  body('email').isEmail(),
+  body('password').isLength({ min: 6 }),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -495,7 +206,7 @@ app.post('/users',
       id: maxId + 1,
       name,
       email,
-      password // в реальном проекте пароль нужно хешировать!
+      password
     };
 
     users.push(newUser);
@@ -506,43 +217,6 @@ app.post('/users',
   }
 );
 
-/**
- * @swagger
- * /users/{id}:
- *   patch:
- *     summary: Частичное обновление пользователя
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: Обновлённый пользователь (без пароля)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       400:
- *         description: Ошибка валидации
- *       404:
- *         description: Пользователь не найден
- */
 app.patch('/users/:id',
   body('name').optional().isString(),
   body('email').optional().isEmail(),
@@ -571,31 +245,6 @@ app.patch('/users/:id',
   }
 );
 
-/**
- * @swagger
- * /users/{id}:
- *   delete:
- *     summary: Удалить пользователя
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Пользователь удалён
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       404:
- *         description: Пользователь не найден
- */
 app.delete('/users/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   const initialLength = users.length;
@@ -609,23 +258,23 @@ app.delete('/users/:id', async (req, res) => {
   }
 });
 
-// Стартовая страница
+// Стартовая страница (если есть index.html в public)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Обработка 404
+// 404
 app.use((req, res) => {
   res.status(404).json({ error: 'Маршрут не найден' });
 });
 
-// Централизованный обработчик ошибок
+// Обработчик ошибок
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Что-то пошло не так' });
 });
 
-// Запуск сервера после загрузки всех данных
+// Запуск
 Promise.all([loadProducts(), loadUsers()]).then(() => {
   app.listen(PORT, () => {
     console.log(`Сервер запущен на http://localhost:${PORT}`);
